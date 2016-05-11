@@ -6,6 +6,6 @@ mpris dbus interface implementation for feeluown
 ```
 sudo apt-get install python3-dbus
 sudo apt-get install python3-dbus.mainloop.pyqt5
-cd ~/.FeelUOwn
+cd ~/.FeelUOwn/plugins
 git clone https://github.com/cosven/feeluown-mpris2-plugin.git
 ```
