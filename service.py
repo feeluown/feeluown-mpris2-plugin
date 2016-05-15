@@ -167,7 +167,7 @@ class MprisServer(dbus.service.Object):
 
     def _update_song_base_props(self, music_model):
         props = dbus.Dictionary({'Metadata': dbus.Dictionary({
-            'xesam:artist': music_model.artists_name,
+            'xesam:artist': music_model.artists_name.split(', '),
             'xesam:url': music_model.url,
             'mpris:length': dbus.Int64(music_model.length*1000),
             'mpris:artUrl': music_model.album_img,
