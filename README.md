@@ -12,4 +12,5 @@ git clone https://github.com/cosven/feeluown-mpris2-plugin.git
 
 ## CHANGELOG
 
+`2017-6-14`: 适配 feeluown 1.1.0 版本
 `2016-5-15`: 修复 xml 不完整的 bug. **严重**

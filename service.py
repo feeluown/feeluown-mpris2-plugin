@@ -24,7 +24,7 @@ class MprisServer(dbus.service.Object):
         self._app = app
 
         self._app.player.positionChanged.connect(self._Seeked)
-        self._app.player.signal_player_media_changed.connect(
+        self._app.player.signal_player_song_changed.connect(
             self._update_song_base_props)
         self._app.player.stateChanged.connect(
             self._update_playback_status)
