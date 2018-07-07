@@ -1,9 +1,9 @@
 import logging
 import os
 
-from PyQt5.QtMultimedia import QMediaPlayer
 import dbus
 import dbus.service
+from fuocore.core.player import  State
 
 
 FEELUOWN_MPRIS_BUS_NAME = 'org.mpris.MediaPlayer2.feeluown'
@@ -23,10 +23,10 @@ class MprisServer(dbus.service.Object):
         super().__init__(bus, MPRIS_OBJECT_PATH)
         self._app = app
 
-        self._app.player.positionChanged.connect(self._Seeked)
-        self._app.player.signal_player_song_changed.connect(
+        self._app.player.position_changed.connect(self._Seeked)
+        self._app.playlist.song_changed.connect(
             self._update_song_base_props)
-        self._app.player.stateChanged.connect(
+        self._app.player.state_changed.connect(
             self._update_playback_status)
 
         self._properties = dbus.Dictionary({
@@ -98,7 +98,7 @@ class MprisServer(dbus.service.Object):
     @dbus.service.method(MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
                          in_signature='', out_signature='')
     def PlayPause(self):
-        self._app.player.play_or_pause()
+        self._app.player.toggle()
 
     def _Seeked(self, position):
         self.Seeked(dbus.Int64(position*1000))
@@ -166,13 +166,17 @@ class MprisServer(dbus.service.Object):
         return contents
 
     def _update_song_base_props(self, music_model):
+        cover = ''
+        if music_model.album:
+            cover = music_model.album.cover or ''
+        title = music_model.title
         props = dbus.Dictionary({'Metadata': dbus.Dictionary({
-            'xesam:artist': music_model.artists_name.split(', '),
+            'xesam:artist': [a.name for a in music_model.artists] or ['Unknown'],
             'xesam:url': music_model.url,
-            'mpris:length': dbus.Int64(music_model.length*1000),
-            'mpris:artUrl': music_model.album_img,
+            'mpris:length': dbus.Int64(music_model.duration*1000),
+            'mpris:artUrl': cover,
             'xesam:album': music_model.album_name,
-            'xesam:title': music_model.title,
+            'xesam:title': title,
         }, signature='sv')}, signature='sv')
         self._player_properties.update(props)
 
@@ -180,9 +184,9 @@ class MprisServer(dbus.service.Object):
                                props, [])
 
     def _update_playback_status(self, playback_status):
-        if playback_status == QMediaPlayer.StoppedState:
+        if playback_status == State.stopped:
             status = self._player_properties['PlaybackStatus'] = 'Stopped'
-        elif playback_status == QMediaPlayer.PausedState:
+        elif playback_status == State.paused:
             status = self._player_properties['PlaybackStatus'] = 'Paused'
         else:
             status = self._player_properties['PlaybackStatus'] = 'Playing'
