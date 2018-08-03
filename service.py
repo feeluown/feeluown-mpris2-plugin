@@ -3,7 +3,7 @@ import os
 
 import dbus
 import dbus.service
-from fuocore.core.player import  State
+from fuocore.player import  State
 
 
 FEELUOWN_MPRIS_BUS_NAME = 'org.mpris.MediaPlayer2.feeluown'
