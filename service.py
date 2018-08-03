@@ -23,7 +23,7 @@ class MprisServer(dbus.service.Object):
         super().__init__(bus, MPRIS_OBJECT_PATH)
         self._app = app
 
-        self._app.player.position_changed.connect(self._Seeked)
+        # self._app.player.position_changed.connect(self._Seeked)
         self._app.playlist.song_changed.connect(
             self._update_song_base_props)
         self._app.player.state_changed.connect(
