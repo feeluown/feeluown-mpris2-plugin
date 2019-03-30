@@ -171,7 +171,9 @@ class MprisServer(dbus.service.Object):
             cover = music_model.album.cover or ''
         title = music_model.title
         props = dbus.Dictionary({'Metadata': dbus.Dictionary({
-            'xesam:artist': [a.name for a in music_model.artists] or ['Unknown'],
+            # make xesam:artist a one-element list to compat with KDE
+            # KDE will not update artist field if the length>=2
+            'xesam:artist': [', '.join((e.name for e in music_model.artists))] or ['Unknown'],
             'xesam:url': music_model.url,
             'mpris:length': dbus.Int64(music_model.duration*1000),
             'mpris:artUrl': cover,
