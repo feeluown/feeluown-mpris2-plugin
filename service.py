@@ -167,6 +167,8 @@ class MprisServer(dbus.service.Object):
         return contents
 
     def _update_song_base_props(self, music_model):
+        if music_model is None:
+            return
         cover = ''
         if music_model.album:
             cover = music_model.album.cover or ''
