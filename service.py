@@ -65,7 +65,7 @@ class MprisServer(dbus.service.Object):
                          in_signature='', out_signature='')
     def Play(self):
         logger.info('dbus: call play')
-        self._app.player.play()
+        self._app.player.resume()
 
     @dbus.service.method(MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
                          in_signature='', out_signature='')
@@ -98,6 +98,7 @@ class MprisServer(dbus.service.Object):
     @dbus.service.method(MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
                          in_signature='', out_signature='')
     def PlayPause(self):
+        logger.info('dbus: call playpause')
         self._app.player.toggle()
 
     def _Seeked(self, position):
