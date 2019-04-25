@@ -4,6 +4,7 @@ import os
 import dbus
 import dbus.service
 from fuocore.player import  State
+from fuocore.protocol import get_url
 
 
 FEELUOWN_MPRIS_BUS_NAME = 'org.mpris.MediaPlayer2.feeluown'
@@ -15,6 +16,12 @@ MPRIS_MEDIAPLAYER_PLAYER_INTERFACE = 'org.mpris.MediaPlayer2.Player'
 logger = logging.getLogger(__name__)
 
 
+to_dbus_position = lambda p: dbus.Int64(p * 1000 * 1000)
+to_fuo_position = lambda p: p / 1000 / 1000
+to_track_id = lambda model: '/com/feeluown/{}/songs/{}'\
+        .format(model.source, model.identifier)
+
+
 class MprisServer(dbus.service.Object):
     def __init__(self, app):
         bus = dbus.service.BusName(
@@ -23,7 +30,7 @@ class MprisServer(dbus.service.Object):
         super().__init__(bus, MPRIS_OBJECT_PATH)
         self._app = app
 
-        self._app.player.position_changed.connect(self._Seeked)
+        self._app.player.position_changed.connect(self._update_position)
         self._app.playlist.song_changed.connect(
             self._update_song_base_props)
         self._app.player.state_changed.connect(
@@ -54,11 +61,11 @@ class MprisServer(dbus.service.Object):
             'CanGoNext': True,
             'CanGoPrevious': True,
             'CanControl': True,
-            'CanSeek': False,
+            'CanSeek': True,
             'CanPause': True,
             'CanPlay': True,
             'Position': dbus.Int64(0),
-            'LoopStatus': 'Playlist',
+            # 'LoopStatus': 'Playlist',
             'PlaybackStatus': 'Stopped',    # ['Stopped', 'Paused', 'Playing']
             'Volume': 1.0,
         }, signature='sv', variant_level=2)
@@ -95,7 +102,8 @@ class MprisServer(dbus.service.Object):
     @dbus.service.method(MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
                          in_signature='ox', out_signature='')
     def SetPosition(self, TrackId, Position):
-        self._app.player.setPosition(Position/1000000)
+        logger.info('dbus: set position')
+        self._app.player.position = to_fuo_position(Position)
 
     @dbus.service.method(MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
                          in_signature='', out_signature='')
@@ -103,20 +111,31 @@ class MprisServer(dbus.service.Object):
         logger.info('dbus: call playpause')
         self._app.player.toggle()
 
-    def _Seeked(self, position):
-        if position and position - self._current_position >= 1:
-            self._current_position = position
-            self.Seeked(dbus.Int64(position*1000*1000))
-            self._player_properties['Position'] = dbus.Int64(position*1000*1000)
-            self.PropertiesChanged(
-                MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
-                {'Position': dbus.Int64(position*1000*1000)},
-                [])
+    def _update_position(self, position):
+        # 根据 mpris2 规范, position 变化时，不需要发送 PropertiesChanged 信号。
+        # audacious 的一个 issue 也证明了这个观点:
+        #
+        #   https://redmine.audacious-media-player.org/issues/849
+        #   这个 issue 主要是说频繁发送 PropertiesChanged 信号会导致
+        #   GNOME 桌面消耗大量 CPU。
+        #
+        # TODO: 由于目前 feeluown 播放器并没有提供 seeked 相关的信号，
+        # 所以我们这里通过一个 HACK 来决定是否发送 seeked 信号。
+        if position is None:
+            return
+        dbus_position = to_dbus_position(position)
+        old_position = self._player_properties['Position']
+        self._player_properties['Position'] = dbus_position
+
+        # 如果时间差 1s 以上，我们认为这个 position 变化是由用户手动 seek 产生的
+        # 根据目前观察，正常情况下，position 的变化差值是几百毫秒
+        if abs(dbus_position - old_position) >= 1 * 1000 * 1000:
+            self.Seeked(dbus_position)
 
     @dbus.service.method(MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
                          in_signature='x', out_signature='')
     def Seek(self, Offset):
-        self._app.player.setPosition(Offset/1000000)
+        self._app.player.position = to_fuo_position(Offset)
 
     @dbus.service.method(MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
                          in_signature='', out_signature='')
@@ -126,7 +145,7 @@ class MprisServer(dbus.service.Object):
     @dbus.service.signal(MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
                          signature='x')
     def Seeked(self, Position):
-        pass
+        logger.info('dbus: send seeked signal')
 
     @dbus.service.signal(dbus.PROPERTIES_IFACE,
                          signature='sa{sv}as')
@@ -171,25 +190,27 @@ class MprisServer(dbus.service.Object):
         return contents
 
     def _update_song_base_props(self, music_model):
-        self._current_position = 0
         if music_model is None:
             return
         cover = ''
         if music_model.album:
             cover = music_model.album.cover or ''
         title = music_model.title
-        props = dbus.Dictionary({'Metadata': dbus.Dictionary({
-            # make xesam:artist a one-element list to compat with KDE
-            # KDE will not update artist field if the length>=2
-            'xesam:artist': [', '.join((e.name for e in music_model.artists))] or ['Unknown'],
-            'xesam:url': music_model.url,
-            'mpris:length': dbus.Int64(music_model.duration*1000),
-            'mpris:artUrl': cover,
-            'xesam:album': music_model.album_name,
-            'xesam:title': title,
-        }, signature='sv')}, signature='sv')
+        props = dbus.Dictionary({
+            'Metadata': dbus.Dictionary({
+                # make xesam:artist a one-element list to compat with KDE
+                # KDE will not update artist field if the length>=2
+                'xesam:artist': [', '.join((e.name for e in music_model.artists))] or ['Unknown'],
+                'xesam:url': music_model.url,
+                'mpris:length': dbus.Int64(music_model.duration*1000),
+                'mpris:trackid': to_track_id(music_model),
+                'mpris:artUrl': cover,
+                'xesam:album': music_model.album_name,
+                'xesam:title': title,
+            }, signature='sv'),
+            'Position': dbus.Int64(0),
+        }, signature='sv')
         self._player_properties.update(props)
-
         self.PropertiesChanged(MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
                                props, [])
 
