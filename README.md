@@ -12,6 +12,7 @@ git clone https://github.com/cosven/feeluown-mpris2-plugin.git
 
 ## CHANGELOG
 
+- `2019-04-25`: 支持 position 同步和 seek 操作
 - `2019-04-20`: 适配 feeluown 3.0 版本
 - `2018-07-08`: 适配 feeluown 2.0 版本（不兼容老版本）
 - `2017-06-14`: 适配 feeluown 1.1.0 版本
