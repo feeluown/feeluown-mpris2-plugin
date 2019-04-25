@@ -23,7 +23,7 @@ class MprisServer(dbus.service.Object):
         super().__init__(bus, MPRIS_OBJECT_PATH)
         self._app = app
 
-        # self._app.player.position_changed.connect(self._Seeked)
+        self._app.player.position_changed.connect(self._Seeked)
         self._app.playlist.song_changed.connect(
             self._update_song_base_props)
         self._app.player.state_changed.connect(
@@ -36,6 +36,8 @@ class MprisServer(dbus.service.Object):
             'CanRaise': False,
             'HasTrackList': False,
         }, signature='sv')
+
+        self._current_position = 0
 
         self._player_properties = dbus.Dictionary({
             'Metadata': dbus.Dictionary({
@@ -52,7 +54,7 @@ class MprisServer(dbus.service.Object):
             'CanGoNext': True,
             'CanGoPrevious': True,
             'CanControl': True,
-            'CanSeek': True,
+            'CanSeek': False,
             'CanPause': True,
             'CanPlay': True,
             'Position': dbus.Int64(0),
@@ -93,7 +95,7 @@ class MprisServer(dbus.service.Object):
     @dbus.service.method(MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
                          in_signature='ox', out_signature='')
     def SetPosition(self, TrackId, Position):
-        self._app.player.setPosition(Position/1000)
+        self._app.player.setPosition(Position/1000000)
 
     @dbus.service.method(MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
                          in_signature='', out_signature='')
@@ -102,17 +104,19 @@ class MprisServer(dbus.service.Object):
         self._app.player.toggle()
 
     def _Seeked(self, position):
-        self.Seeked(dbus.Int64(position*1000))
-        self._player_properties['Position'] = dbus.Int64(position*1000)
-        self.PropertiesChanged(
-            MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
-            {'Position': dbus.Int64(position*1000)},
-            [])
+        if position and position - self._current_position >= 1:
+            self._current_position = position
+            self.Seeked(dbus.Int64(position*1000*1000))
+            self._player_properties['Position'] = dbus.Int64(position*1000*1000)
+            self.PropertiesChanged(
+                MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
+                {'Position': dbus.Int64(position*1000*1000)},
+                [])
 
     @dbus.service.method(MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
                          in_signature='x', out_signature='')
     def Seek(self, Offset):
-        self._app.player.setPosition(Offset/1000)
+        self._app.player.setPosition(Offset/1000000)
 
     @dbus.service.method(MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
                          in_signature='', out_signature='')
@@ -167,6 +171,7 @@ class MprisServer(dbus.service.Object):
         return contents
 
     def _update_song_base_props(self, music_model):
+        self._current_position = 0
         if music_model is None:
             return
         cover = ''
