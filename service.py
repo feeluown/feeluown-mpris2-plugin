@@ -1,10 +1,10 @@
+import asyncio
 import logging
 import os
 
 import dbus
 import dbus.service
-from fuocore.player import  State
-from fuocore.protocol import get_url
+from fuocore.player import State
 
 
 FEELUOWN_MPRIS_BUS_NAME = 'org.mpris.MediaPlayer2.feeluown'
@@ -22,6 +22,15 @@ to_track_id = lambda model: '/com/feeluown/{}/songs/{}'\
         .format(model.source, model.identifier)
 
 
+def aio_threaded(func):
+    loop = asyncio.get_event_loop()
+
+    def wrapper(*args):
+        loop.run_in_executor(None, func, *args)
+
+    return wrapper
+
+
 class MprisServer(dbus.service.Object):
     def __init__(self, app):
         bus = dbus.service.BusName(
@@ -32,7 +41,7 @@ class MprisServer(dbus.service.Object):
 
         self._app.player.position_changed.connect(self._update_position)
         self._app.playlist.song_changed.connect(
-            self._update_song_base_props)
+            aio_threaded(self._update_song_props), weak=False, aioqueue=True)
         self._app.player.state_changed.connect(
             self._update_playback_status)
 
@@ -189,23 +198,27 @@ class MprisServer(dbus.service.Object):
             contents = f.read()
         return contents
 
-    def _update_song_base_props(self, music_model):
-        if music_model is None:
+    def _update_song_props(self, song):
+        """
+        此函数可能会涉及部分网络请求，目前我们将它放在 asyncio
+        executor 中执行。
+        """
+        if song is None:
             return
         cover = ''
-        if music_model.album:
-            cover = music_model.album.cover or ''
-        title = music_model.title
+        if song.album:
+            cover = song.album.cover or ''
+        title = song.title
         props = dbus.Dictionary({
             'Metadata': dbus.Dictionary({
                 # make xesam:artist a one-element list to compat with KDE
                 # KDE will not update artist field if the length>=2
-                'xesam:artist': [', '.join((e.name for e in music_model.artists))] or ['Unknown'],
-                'xesam:url': music_model.url,
-                'mpris:length': dbus.Int64(music_model.duration*1000),
-                'mpris:trackid': to_track_id(music_model),
+                'xesam:artist': [', '.join((e.name for e in song.artists))] or ['Unknown'],
+                'xesam:url': song.url,
+                'mpris:length': dbus.Int64(song.duration*1000),
+                'mpris:trackid': to_track_id(song),
                 'mpris:artUrl': cover,
-                'xesam:album': music_model.album_name,
+                'xesam:album': song.album_name,
                 'xesam:title': title,
             }, signature='sv'),
             'Position': dbus.Int64(0),
