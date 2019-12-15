@@ -51,6 +51,9 @@ class MprisServer(dbus.service.Object):
             'CanQuit': False,
             'CanRaise': False,
             'HasTrackList': False,
+            'SupportedUriSchemes': ['http', 'file', 'smb'],
+            'SupportedMimeTypes': ['audio/aac', 'audio/m4a', 'audio/mp3', 'audio/wav', 'audio/wma', 'audio/x-ape',
+                'audio/x-flac', 'audio/x-ogg', 'audio/x-oggflac', 'audio/x-vorbis'],
         }, signature='sv')
 
         self._current_position = 0
