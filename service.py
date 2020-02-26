@@ -104,7 +104,7 @@ class MprisServer(dbus.service.Object):
                          in_signature='', out_signature='')
     def Previous(self):
         logger.info('dbus: call play last')
-        self._app.player.play_last()
+        self._app.player.play_previous()
 
     @dbus.service.method(MPRIS_MEDIAPLAYER_PLAYER_INTERFACE,
                          in_signature='s', out_signature='')
@@ -173,6 +173,8 @@ class MprisServer(dbus.service.Object):
     @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature='ssv')
     def Set(self, interface, prop, value):
         self._player_properties[prop] = value
+        if prop == 'Volume':
+            self._app.player.volume = int(100 * value)
 
     @dbus.service.method(dbus.PROPERTIES_IFACE,
                          in_signature='s', out_signature='a{sv}')
