@@ -1,6 +1,9 @@
 # feeluown-mpris2-plugin
 mpris dbus interface implementation for feeluown
 
+# 此项目已合并至 FeelUOwn 主仓库
+如已安装，请卸载此插件并更新 FeelUOwn 至最新版。
+
 # 安装
 
 ```
